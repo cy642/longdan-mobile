@@ -1,0 +1,3 @@
+.qa/
+*.log
+node_modules/

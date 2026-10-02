@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#142d27">
+<meta name="description" content="龙胆：逆命三国独立手机版。横屏触控，操纵赵云夺剑、救援、破阵，手机浏览器可直接试玩。">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>龙胆：逆命三国 · 手机版</title>
+<style>/* GAME_STYLES */</style>
+</head>
+<body>
+<main id="game" aria-label="龙胆：逆命三国手机版">
+<canvas id="battlefield" aria-label="长坂战场：左侧摇杆移动，右侧按钮出枪和闪避"></canvas>
+<div id="hud" class="hud hidden">
+<header class="topbar">
+<div class="vitals"><div class="vital-line"><strong>赵子龙</strong><span id="hpLabel">200 / 200</span></div><div class="meter health"><i id="hpFill"></i></div><div class="vital-line secondary"><span>气力</span><span id="qiLabel">100</span></div><div class="meter energy"><i id="qiFill"></i></div></div>
+<div class="battle-status"><strong id="regionLabel">长坂逆命</strong><small id="troopLabel">随军 3 人 · 待命</small><small id="pressureLabel">观察 · 闪避 · 反击</small></div>
+<nav class="top-actions" aria-label="战场工具"><button id="quickMapButton" type="button" aria-label="查看任务与军图">军图</button><button id="soundButton" type="button" aria-label="切换声音">声音 开</button><button id="pauseButton" type="button" aria-label="暂停游戏">暂停</button></nav>
+</header>
+<div class="mission-strip"><span id="missionTitle">枪起长坂</span><span id="timeLabel">00:00</span></div>
+<div id="bossHud" class="boss-hud hidden"><div><span id="bossName"></span><span id="bossHpLabel"></span></div><div class="meter boss"><i id="bossHpFill"></i></div><div class="meter stagger"><i id="staggerFill"></i></div><small id="bossMove"></small></div>
+<div id="counterHint" class="counter-hint hidden">精准闪避 · 现在出枪接回马枪</div>
+<div id="commandBanner" class="command-banner"></div>
+<button id="interaction" type="button" class="interaction hidden" aria-label="与附近目标互动"></button>
+<div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+<div id="stageBanner" class="stage-banner hidden"><small id="stageChapter"></small><strong id="stageName"></strong></div>
+<div id="touchControls" class="touch-controls" aria-label="触控操作">
+<div id="joystick" class="joystick" role="group" aria-label="移动摇杆"><span class="stick-ring"></span><span id="stickKnob" class="stick-knob"></span><span class="stick-label">移动</span></div>
+<button id="healButton" class="medicine-button" type="button" data-action="heal" aria-label="使用行军药"><b>行军药</b><small id="potionState">3份</small></button>
+<div class="action-cluster">
+<button type="button" id="ultimateButton" data-action="ultimate" class="action-button ultimate" aria-label="青釭断势"><b>青釭</b><small id="rageState">夺剑后习得</small></button>
+<button type="button" id="heavyButton" data-action="heavy" class="action-button heavy" aria-label="横扫破阵"><b>破阵</b><small id="heavyState">30气</small></button>
+<button type="button" id="attackButton" data-action="attack" class="action-button attack" aria-label="按住出枪连续攻击"><b>出枪</b><small>按住连击</small></button>
+<button type="button" id="dashButton" data-action="dash" class="action-button dash" aria-label="闪避"><b>闪避</b><small id="dashState">16气</small></button>
+</div>
+</div>
+</div>
+<section id="menu" class="overlay menu-overlay">
+<div class="menu-content"><p class="eyebrow">一身是胆 · 一念逆命 <span class="edition">手机版</span></p><h1>龙胆<span>逆命三国</span></h1><p class="subtitle">重生之我在三国当赵子龙</p><p class="opening">左手掌路，右手出枪。<br>这一回，长坂的结局由你改写。</p><div class="difficulty" aria-label="战斗难度"><button type="button" data-difficulty="story" class="selected">初入战场<small>推荐初次触控游玩</small></button><button type="button" data-difficulty="normal">龙胆<small>观察招式 · 闪避反击</small></button></div><div class="start-actions"><button id="continueButton" class="primary-button hidden" type="button">继续逆命 →</button><button id="startButton" class="primary-button" type="button">踏入长坂 →</button></div><p id="saveInfo" class="save-info"></p><p id="menuControls" class="menu-controls"></p><small class="fiction-note">三国架空演绎 · 第一章试玩 · 横屏游玩</small></div>
+</section>
+<section id="dialog" class="overlay hidden" aria-labelledby="dialogTitle"><div class="dialog-paper"><div class="dialog-speaker"><img id="dialogPortrait" alt="赵云形象"><p id="dialogEyebrow" class="eyebrow">赵云</p></div><h2 id="dialogTitle"></h2><p id="dialogText"></p><div id="dialogChoices" class="dialog-choices"></div></div></section>
+<section id="pause" class="overlay hidden"><div class="pause-paper"><p class="eyebrow">暂歇锋芒</p><h2>战场已暂停</h2><p id="pauseControls"></p><p id="checkpointInfo" class="save-info"></p><div class="dialog-choices pause-actions"><button id="resumeButton" class="primary-button" type="button">重返战场</button><button id="fullscreenButton" type="button">尝试全屏</button><button id="restartButton" type="button">重新开始第一章</button><button id="pauseMenuButton" type="button">返回标题画面</button></div></div></section>
+<section id="map" class="overlay hidden" aria-labelledby="mapTitle"><div class="map-paper"><div class="map-heading"><div><p class="eyebrow">长坂军图</p><h2 id="mapTitle">来路与未尽之命</h2></div><button id="closeMapButton" type="button">返回战场</button></div><div class="map-content"><div><div id="regionRoute" class="region-route"></div><canvas id="bigmap" width="750" height="450" aria-label="当前区域军图"></canvas><p class="map-hint">金：前路　青：营火与救援　红：敌阵　白：赵云</p></div><div><h3 id="mapMissionTitle">当前任务</h3><p id="missionText"></p><div id="objectiveList" class="objective-list"></div><div class="squad-controls" aria-label="随军军令"><button type="button" data-command="follow" class="selected">集合</button><button type="button" data-command="hold">守点</button><button type="button" data-command="charge">冲阵</button></div><div id="memoryCards" class="memory-cards"></div></div></div></div></section>
+<section id="defeat" class="overlay hidden" aria-labelledby="defeatTitle"><div class="pause-paper"><p class="eyebrow">长坂未竟</p><h2 id="defeatTitle"></h2><p id="defeatText"></p><p class="retry-note">已完成的救援、夺剑与捷径会保留。</p><div class="dialog-choices"><button id="retryButton" class="primary-button" type="button">重新握枪</button><button id="defeatMenuButton" type="button">回到标题</button></div></div></section>
+<section id="ending" class="overlay hidden" aria-labelledby="endingTitle"><div class="ending-paper"><p class="eyebrow">长坂战报 · 你改写的这一页</p><h2 id="endingTitle"></h2><p id="endingText"></p><div id="endingOutcomes" class="ending-outcomes"></div><div id="endingStats" class="ending-stats"></div><div id="endingHistory" class="ending-history"></div><div class="dialog-choices"><button id="playAgainButton" class="primary-button" type="button">再改一次历史</button><button id="backMenuButton" type="button">回到标题</button></div></div></section>
+<section id="rotateScreen" class="rotate-screen hidden" aria-label="请横屏游玩"><span class="rotate-icon">↻</span><h2>横过手机，握住长枪</h2><p>这款游戏为双手横屏触控设计。<br>请关闭屏幕旋转锁定，再将手机横过来。</p><small>战斗已暂停，进度会保留。</small></section>
+<div id="loading" class="loading">正在铺开长坂军图…</div>
+</main>
+<script>/* GAME_SCRIPT */</script>
+</body>
+</html>
