@@ -1,0 +1,20 @@
+{
+  "name": "龙胆：逆命三国 · 手机版",
+  "short_name": "龙胆三国",
+  "lang": "zh-CN",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "landscape",
+  "background_color": "#142d27",
+  "theme_color": "#142d27",
+  "icons": [
+    {
+      "src": "assets/zhaoyun-reference.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

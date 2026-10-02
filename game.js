@@ -10,7 +10,8 @@
   const SAVE_KEY = 'longdan.mobile.changban.v1';
   let viewW = innerWidth, viewH = innerHeight, dpr = 1;
   let zoom = .72, portrait = false;
-  let terrain, scenery = [], menuDifficulty = 'story', lastFrame = performance.now(), hudClock = 0;
+  let terrain, scenery = [], menuDifficulty = 'story', lastFrame = performance.now(), hudClock = 0, lastRender = 0;
+  let assetsReady = false, resizeTimer = 0, landscapeAttempted = false;
   let toastTimer = 0, commandTimer = 0, stageTimer = 0, audioContext = null, muted = false, saveAvailable = true;
   let mouseAttack = false, mouse = { x: 0, y: 0 }, aimUntil = 0;
   const keys = new Set(), camera = { x: 650, y: 750 };
@@ -33,12 +34,33 @@
   }
   function hideOverlays() { overlays.forEach(id => $(id).classList.add('hidden')); }
   function resize() {
-    viewW = innerWidth; viewH = innerHeight; dpr = Math.min(devicePixelRatio || 1, 1.5);
+    viewW = Math.max(1, innerWidth); viewH = Math.max(1, innerHeight);
+    const pixelBudget = 950000, budgetDpr = Math.sqrt(pixelBudget / Math.max(1, viewW * viewH));
+    dpr = Math.max(.75, Math.min(devicePixelRatio || 1, 1.25, budgetDpr));
     zoom = clamp(viewH / 540, .62, .86); portrait = viewH > viewW;
-    canvas.width = Math.round(viewW * dpr); canvas.height = Math.round(viewH * dpr); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    canvas.width = Math.max(1, Math.round(viewW * dpr)); canvas.height = Math.max(1, Math.round(viewH * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'medium';
+    ctx.clearRect(0, 0, viewW, viewH); ctx.fillStyle = '#657d67'; ctx.fillRect(0, 0, viewW, viewH);
     clearInput(); $('rotateScreen').classList.toggle('hidden', !portrait);
     if (portrait && campaign.mode === 'playing') togglePause();
     if (campaign.mode === 'map') renderBigMap();
+  }
+  function scheduleResize() {
+    clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { resize(); if (assetsReady) render(performance.now()); }, 120);
+  }
+  function touchDevice() { return navigator.maxTouchPoints > 0 || matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent); }
+  async function requestLandscape(force = false) {
+    if (!force && landscapeAttempted && !portrait) return;
+    landscapeAttempted = true;
+    if (!touchDevice()) return;
+    try {
+      if (!document.fullscreenElement && document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+    } catch {}
+    try { if (screen.orientation?.lock) await screen.orientation.lock('landscape'); } catch {}
+    scheduleResize();
+  }
+  function recoverCanvas() {
+    resize(); buildTerrain(); if (assetsReady) { lastRender = 0; render(performance.now()); }
   }
   function inputState() {
     const x = touch.x + (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0);
@@ -76,9 +98,12 @@
     else if (campaign.mode === 'map') { campaign.mode = 'playing'; $('map').classList.add('hidden'); }
     clearInput();
   }
-  function start() { if (portrait) return; unlockAudio(); clearInput(); hideOverlays(); $('hud').classList.remove('hidden'); campaign.start(menuDifficulty); processEvents(); writeSave(); updateHud(); }
-  function continueGame() {
-    if (portrait) return;
+  async function start() {
+    unlockAudio(); await requestLandscape(true); if (portrait) { $('rotateScreen').classList.remove('hidden'); return; }
+    clearInput(); hideOverlays(); $('hud').classList.remove('hidden'); campaign.start(menuDifficulty); processEvents(); writeSave(); updateHud();
+  }
+  async function continueGame() {
+    unlockAudio(); await requestLandscape(true); if (portrait) { $('rotateScreen').classList.remove('hidden'); return; }
     const saved = readSave(); if (!saved || !campaign.restore(saved)) { refreshSaveMenu(); showToast('没有可继续的进度，可开始新的征程。'); return; }
     unlockAudio(); clearInput(); hideOverlays(); $('hud').classList.remove('hidden'); processEvents(); camera.x = campaign.player.x; camera.y = campaign.player.y; updateHud();
   }
@@ -167,7 +192,6 @@
   });
   document.addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
   window.addEventListener('blur', () => { clearInput(); if (campaign.mode === 'playing') togglePause(); });
-  document.addEventListener('visibilitychange', () => { if (document.hidden) { clearInput(); if (campaign.mode === 'playing') togglePause(); } });
   canvas.addEventListener('pointermove', e => { if (e.pointerType === 'touch') return; const rect = canvas.getBoundingClientRect(); mouse = { x: e.clientX - rect.left, y: e.clientY - rect.top }; aimUntil = performance.now() + 1400; });
   canvas.addEventListener('pointerdown', e => { if (campaign.mode !== 'playing' || e.pointerType === 'touch') return; unlockAudio(); if (e.button === 0) { mouseAttack = true; campaign.attack(inputState().aim); canvas.setPointerCapture(e.pointerId); } else if (e.button === 2) act('heavy'); });
   window.addEventListener('pointerup', () => { mouseAttack = false; });
@@ -179,7 +203,7 @@
   $('soundButton').addEventListener('click', () => { muted = !muted; unlockAudio(); $('soundButton').textContent = '声音 ' + (muted ? '关' : '开'); });
   for (const id of ['backMenuButton', 'pauseMenuButton', 'defeatMenuButton']) $(id).addEventListener('click', returnMenu);
   $('retryButton').addEventListener('click', () => { clearInput(); $('defeat').classList.add('hidden'); campaign.retry(); processEvents(); updateHud(); });
-  $('fullscreenButton').addEventListener('click', async () => { try { if (document.documentElement.requestFullscreen) { await document.documentElement.requestFullscreen(); try { await screen.orientation?.lock?.('landscape'); } catch {} } else { $('checkpointInfo').textContent = '此浏览器不支持网页全屏。横屏即可继续游玩，也可从浏览器菜单添加到主屏幕。'; } } catch { $('checkpointInfo').textContent = '未能进入全屏，横屏即可继续游玩。'; } });
+  $('fullscreenButton').addEventListener('click', async () => { await requestLandscape(true); if (portrait) $('checkpointInfo').textContent = '浏览器没有锁定方向，请手动横过手机；进度已经暂停。'; });
   document.querySelectorAll('[data-difficulty]').forEach(b => b.addEventListener('click', () => { menuDifficulty = b.dataset.difficulty; document.querySelectorAll('[data-difficulty]').forEach(o => o.classList.toggle('selected', o === b)); }));
   document.querySelectorAll('[data-command]').forEach(b => b.addEventListener('click', () => { campaign.setCommand(b.dataset.command); processEvents(); updateHud(); }));
   function capture(element, id) { element.setPointerCapture(id); captured.set(id, element); }
@@ -209,7 +233,10 @@
   function ellipse(g, x, y, rx, ry, color) { g.fillStyle = color; g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, TAU); g.fill(); }
   function polygon(g, points, color) { g.fillStyle = color; g.beginPath(); points.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.closePath(); g.fill(); }
   function buildTerrain() {
-    const ratio = 1; terrain = art.stageLandscape(campaign, W, H, ratio);
+    // Keep the pre-rendered terrain below roughly 3.5 million pixels. This
+    // avoids large backing surfaces that can flicker or lose tiles on phones.
+    const ratio = clamp(Math.sqrt(3500000 / ((W + 1200) * (H + 1200))), .62, .86);
+    terrain = art.stageLandscape(campaign, W, H, ratio);
     scenery = [...campaign.trees.map(t => art.scenerySprite('tree', t, ratio)), ...campaign.huts.map(h => art.scenerySprite('hut', h, ratio))];
   }
   function onScreen(x, y, margin = 120) { return Math.abs(x - camera.x) < viewW / zoom / 2 + margin && Math.abs(y - camera.y) < viewH / zoom / 2 + margin; }
@@ -293,8 +320,9 @@
     x = viewW / 2 + dx * f; y = viewH / 2 + dy * f; g.save(); g.translate(x, y); g.rotate(Math.atan2(dy, dx)); polygon(g, [[12 + Math.sin(time * 2) * 2, 0], [-6, -7], [-2, 0], [-6, 7]], '#e9d398'); g.restore();
   }
   function render(now) {
+    if (!assetsReady) return;
     const g = ctx, time = now / 1000, p = campaign.player, halfW = viewW / zoom / 2, halfH = viewH / zoom / 2;
-    g.setTransform(dpr, 0, 0, dpr, 0, 0); g.fillStyle = '#657d67'; g.fillRect(0, 0, viewW, viewH);
+    g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, viewW, viewH); g.fillStyle = '#657d67'; g.fillRect(0, 0, viewW, viewH);
     if (campaign.mode !== 'menu') { camera.x += (p.x - camera.x) * .13; camera.y += (p.y - camera.y) * .13; }
     const sx = Math.sin(time * 61) * campaign.screenShake, sy = Math.cos(time * 73) * campaign.screenShake * .65;
     g.save(); g.translate(viewW / 2 + sx, viewH / 2 + sy); g.scale(zoom, zoom); g.translate(-camera.x, -camera.y);
@@ -318,19 +346,30 @@
   }
   function frame(now) {
     const dt = Math.min((now - lastFrame) / 1000, .04); lastFrame = now;
-    campaign.step(dt, inputState()); processEvents(); render(now);
+    campaign.step(dt, inputState()); processEvents();
+    const renderInterval = viewW < 1000 || viewH < 700 ? 1000 / 45 : 1000 / 60;
+    if (now - lastRender >= renderInterval) { lastRender = now; render(now); }
     toastTimer -= dt; commandTimer -= dt; stageTimer -= dt;
     if (toastTimer <= 0) $('toast').classList.add('hidden'); if (commandTimer <= 0) $('commandBanner').classList.remove('show'); if (stageTimer <= 0) $('stageBanner').classList.add('hidden');
     hudClock += dt; if (hudClock >= .1) { hudClock = 0; if (campaign.mode !== 'menu') updateHud(); } requestAnimationFrame(frame);
   }
-  window.addEventListener('resize', resize); window.visualViewport?.addEventListener('resize', resize);
+  window.addEventListener('resize', scheduleResize); window.visualViewport?.addEventListener('resize', scheduleResize);
+  window.addEventListener('orientationchange', scheduleResize); screen.orientation?.addEventListener?.('change', scheduleResize);
+  canvas.addEventListener('contextlost', event => { event.preventDefault(); showToast('正在恢复画面…'); });
+  canvas.addEventListener('contextrestored', recoverCanvas);
+  window.addEventListener('pageshow', () => { if (assetsReady) recoverCanvas(); });
   window.addEventListener('pagehide', () => { clearInput(); if (campaign.mode !== 'menu') writeSave(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { clearInput(); if (campaign.mode === 'playing') togglePause(); }
+    else if (assetsReady) recoverCanvas();
+  });
+  function registerOfflineCache() { if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(() => {}); }
   async function boot() {
-    resize(); buildTerrain(); refreshSaveMenu();
+    resize(); buildTerrain(); refreshSaveMenu(); registerOfflineCache(); requestLandscape();
     $('menuControls').textContent = '左手摇杆移动 · 右手按住出枪\n观察红色预警，松枪闪避，再接反击'; $('pauseControls').textContent = mobileHelp;
     try { await art.loadCharacters(); } catch (error) { $('loading').textContent = '角色素材未能载入，请重新打开游戏。'; console.error(error); return; }
     // Discard construction events; show the region only after entering gameplay.
-    campaign.events = []; $('loading').classList.add('hidden'); lastFrame = performance.now(); requestAnimationFrame(frame);
+    campaign.events = []; assetsReady = true; $('loading').classList.add('hidden'); lastFrame = performance.now(); lastRender = 0; requestAnimationFrame(frame);
   }
   boot();
 })();

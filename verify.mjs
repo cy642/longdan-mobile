@@ -66,6 +66,9 @@ const assetFiles = [...html.matchAll(/"assets\/([^"\n]+\.png)"/g)].map(match => 
 for (const asset of new Set(assetFiles)) assert(readFileSync(new URL('./assets/' + asset, import.meta.url)).length > 0);
 assert(html.includes('id="touchControls"') && html.includes('id="joystick"') && html.includes('id="rotateScreen"'), 'The mobile build must include touch controls and rotation guidance');
 assert(!/data-device|选择你的游玩方式|电脑版试玩/.test(html), 'This is a separate mobile edition, without a device chooser');
+assert(html.includes('rel="manifest"') && html.includes('manifest.webmanifest'), 'The mobile page must advertise an installable landscape manifest');
+assert(readFileSync(new URL('./manifest.webmanifest', import.meta.url), 'utf8').includes('"orientation": "landscape"'));
+assert(readFileSync(new URL('./sw.js', import.meta.url), 'utf8').includes('CACHE_NAME'), 'The mobile page must cache its shell and character images');
 const script = readFileSync(new URL('./game.js', import.meta.url), 'utf8'), shell = readFileSync(new URL('./shell.html', import.meta.url), 'utf8');
 for (const [, id] of script.matchAll(/\$\('([^']+)'\)/g)) assert(shell.includes('id="' + id + '"'), 'Missing desktop UI element: ' + id);
 assert(script.includes("'longdan.mobile.changban.v1'")); assert(!script.includes("'longdan.changban.v2'"), 'Mobile saves must not overwrite desktop saves on the same GitHub Pages origin');
@@ -83,6 +86,9 @@ assert(!input.moveStick(99, 300, 300)); input.moveStick(21, 300, 300); assert(Ma
 input.beginAction(22, 'attack'); input.clear(); assert(!input.attack && input.stickId === null && input.x === 0 && input.y === 0, 'Pause, rotation and pointer cancellation must clear held movement and attack');
 assert.equal(assistAim({ x: 0, y: 0 }, [{ x: 20, y: 0, hp: 0 }, { x: 0, y: 80, hp: 50 }]), Math.PI / 2);
 assert.equal(assistAim({ x: 0, y: 0 }, [{ x: 0, y: 500, hp: 50 }]), undefined, 'Touch aim must not lock onto distant enemies');
+assert(script.includes('requestFullscreen') && script.includes("lock('landscape')"), 'A user gesture must attempt fullscreen landscape mode');
+assert(script.includes('contextlost') && script.includes('contextrestored') && script.includes('visibilitychange'), 'The renderer must recover after a mobile surface interruption');
+assert(script.includes('950000') && script.includes('1000 / 45'), 'The mobile renderer must cap backing pixels and render rate');
 g = fresh(); g.mode = 'map'; const pausedTime = g.time; g.setCommand('hold'); assert.equal(g.command, 'hold'); tick(g, 1); assert.equal(g.time, pausedTime, 'Changing orders in the map must not run the battle');
 assert.equal(Object.keys(StageDefinition).length, 6); assert(AttackDefinition.thrust3.recovery > AttackDefinition.thrust1.recovery);
-console.log('PASS: combat, 6 regions, both story routes, 2 bosses, saved progression, escort navigation, all image assets, independent mobile saves, simultaneous joystick and attack, pointer release, normalized movement, cancellation, touch aim and map orders.');
+console.log('PASS: combat, 6 regions, both story routes, 2 bosses, saved progression, escort navigation, all image assets, independent mobile saves, simultaneous joystick and attack, pointer release, normalized movement, cancellation, touch aim, map orders, landscape install metadata, offline image cache, surface recovery and mobile render budget.');

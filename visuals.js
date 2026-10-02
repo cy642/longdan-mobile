@@ -228,7 +228,8 @@
   function loadImage(url) {
     return new Promise((resolve, reject) => {
       const image = new Image();
-      image.onload = () => resolve(image);
+      image.decoding = 'async'; image.fetchPriority = 'high';
+      image.onload = async () => { try { if (image.decode) await image.decode(); } catch {} resolve(image); };
       image.onerror = () => reject(new Error('角色素材未能载入'));
       image.src = url;
     });
